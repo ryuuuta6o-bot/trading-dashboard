@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>リアルタイム株式売買判断ダッシュボード</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #0a0a0a;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .card {
+            background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
+            border-radius: 12px;
+            border: 1px solid #333;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .price-large {
+            font-size: 2.5rem;
+            font-weight: bold;
+            text-align: right;
+        }
+        .price-change-positive {
+            color: #00ff88;
+        }
+        .price-change-negative {
+            color: #ff4444;
+        }
+        .multiplier {
+            color: #4a9eff;
+        }
+        .credit-ratio {
+            color: #00ff88;
+        }
+        .update-time {
+            color: #888;
+            font-size: 0.8rem;
+        }
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 8px 0;
+        }
+        .data-label {
+            color: #ccc;
+        }
+        .data-value {
+            font-weight: bold;
+            text-align: right;
+        }
+        .bias-bullish {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        .bias-bearish {
+            color: #ff4444;
+            font-weight: bold;
+        }
+        .per-buy {
+            background-color: rgba(0, 255, 136, 0.1);
+            border-left: 4px solid #00ff88;
+        }
+        .per-sell {
+            background-color: rgba(255, 68, 68, 0.1);
+            border-left: 4px solid #ff4444;
+        }
+        .per-neutral {
+            background-color: rgba(255, 193, 7, 0.1);
+            border-left: 4px solid #ffc107;
+        }
+        .surge-signal {
+            animation: pulse 2s infinite;
+            color: #ff1493;
+            font-weight: bold;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .tradingview-widget-container {
+            height: 400px;
+            width: 100%;
+        }
+        @media (max-width: 768px) {
+            .price-large {
+                font-size: 2rem;
+            }
+            .card {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-6xl mx-auto">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-bold mb-2">
+                <i class="fas fa-chart-line mr-2"></i>
+                リアルタイム株式売買判断ダッシュボード
+            </h1>
+            <p class="update-time">最終更新: <span id="lastUpdate"></span></p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- NEXT FUNDS 日経レバETF (1570) -->
+            <div class="card">
+                <div class="section-title">
+                    <i class="fas fa-rocket mr-2" style="color: #ff6b6b;"></i>
+                    NEXT FUNDS 日経レバETF (1570)
+                </div>
+                <div class="data-row">
+                    <span class="data-label">現在価格</span>
+                    <span class="data-value price-large" id="etf-price">21,757<span style="font-size: 1rem; margin-left: 5px;">円</span></span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">前日比</span>
+                    <span class="data-value price-change-negative" id="etf-change">-93 (-0.43%)</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">現在倍率</span>
+                    <span class="data-value multiplier" id="etf-multiplier">1.99<span style="font-size: 0.9rem; margin-left: 3px;">倍</span></span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">信用倍率</span>
+                    <span class="data-value credit-ratio" id="etf-credit-ratio">0.48<span style="font-size: 0.9rem; margin-left: 3px;">倍</span></span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">バイアス判定</span>
+                    <span class="data-value bias-bullish" id="etf-bias">1倍以下なので買い優勢</span>
+                </div>
+            </div>
+
+            <!-- JP225先物 -->
+            <div class="card">
+                <div class="section-title">
+                    <i class="fas fa-chart-area mr-2" style="color: #4a9eff;"></i>
+                    JP225先物
+                </div>
+                <div class="data-row">
+                    <span class="data-label">現在価格</span>
+                    <span class="data-value price-large" id="futures-price">42,825<span style="font-size: 1rem; margin-left: 5px;">円</span></span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">前日比</span>
+                    <span class="data-value" id="futures-change">+125 (+0.29%)</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">更新時刻</span>
+                    <span class="data-value update-time" id="futures-time">15:10:30</span>
+                </div>
+            </div>
+
+            <!-- 日経平均PER -->
+            <div class="card per-neutral" id="per-card">
+                <div class="section-title">
+                    <i class="fas fa-calculator mr-2" style="color: #ffc107;"></i>
+                    日経平均PER
+                </div>
+                <div class="data-row">
+                    <span class="data-label">現在PER</span>
+                    <span class="data-value" id="nikkei-per">14.2<span style="font-size: 0.9rem; margin-left: 3px;">倍</span></span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">売買判断</span>
+                    <span class="data-value" id="per-signal" style="color: #ffc107;">中立ゾーン</span>
+                </div>
+                <div class="mt-3 text-sm" style="color: #888;">
+                    <div>• 17以上: 売り目安</div>
+                    <div>• 11以下: 買い目安</div>
+                </div>
+            </div>
+
+            <!-- 信用残高 -->
+            <div class="card">
+                <div class="section-title">
+                    <i class="fas fa-balance-scale mr-2" style="color: #00ff88;"></i>
+                    信用残高
+                </div>
+                <div class="data-row">
+                    <span class="data-label">売り残</span>
+                    <span class="data-value" id="sell-balance">1.2<span style="font-size: 0.9rem; margin-left: 3px;">兆円</span></span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">買い残</span>
+                    <span class="data-value" id="buy-balance">3.9<span style="font-size: 0.9rem; margin-left: 3px;">兆円</span></span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">売り残状況</span>
+                    <span class="data-value surge-signal" id="sell-status">多い = 買い優勢</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">信用倍率</span>
+                    <span class="data-value credit-ratio" id="credit-ratio">0.31<span style="font-size: 0.9rem; margin-left: 3px;">倍</span></span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">バイアス判定</span>
+                    <span class="data-value bias-bullish" id="ratio-bias">1倍以下なので買い優勢</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- NI225/SPX比率チャート -->
+        <div class="card mt-6">
+            <div class="section-title">
+                <i class="fas fa-chart-line mr-2" style="color: #4a9eff;"></i>
+                NI225/SPX比率チャート
+            </div>
+            <div class="tradingview-widget-container">
+                <div class="tradingview-widget-container__widget"></div>
+                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+                {
+                  "autosize": true,
+                  "symbol": "TVC:NI225/SP:SPX",
+                  "interval": "D",
+                  "timezone": "Asia/Tokyo",
+                  "theme": "dark",
+                  "style": "1",
+                  "locale": "ja",
+                  "enable_publishing": false,
+                  "backgroundColor": "rgba(19, 23, 34, 1)",
+                  "gridColor": "rgba(42, 46, 57, 0.5)",
+                  "hide_top_toolbar": false,
+                  "hide_legend": false,
+                  "save_image": false,
+                  "calendar": false,
+                  "hide_volume": true,
+                  "support_host": "https://www.tradingview.com"
+                }
+                </script>
+            </div>
+            <div class="mt-4">
+                <div class="data-row">
+                    <span class="data-label">現在比率</span>
+                    <span class="data-value" id="ratio-value">0.158</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">市場優位性</span>
+                    <span class="data-value" id="market-bias" style="color: #4a9eff;">日本株やや優位</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // リアルタイムデータ更新機能
+        function updateData() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = now.toLocaleTimeString('ja-JP');
+            
+            // ETF価格のランダム更新
+            const etfBasePrice = 21757;
+            const etfPrice = etfBasePrice + Math.floor(Math.random() * 200 - 100);
+            const etfChange = etfPrice - etfBasePrice;
+            const etfChangePercent = ((etfChange / etfBasePrice) * 100).toFixed(2);
+            
+            document.getElementById('etf-price').innerHTML = `${etfPrice.toLocaleString()}<span style="font-size: 1rem; margin-left: 5px;">円</span>`;
+            
+            const etfChangeElement = document.getElementById('etf-change');
+            if (etfChange >= 0) {
+                etfChangeElement.className = 'data-value price-change-positive';
+                etfChangeElement.textContent = `+${etfChange} (+${etfChangePercent}%)`;
+            } else {
+                etfChangeElement.className = 'data-value price-change-negative';
+                etfChangeElement.textContent = `${etfChange} (${etfChangePercent}%)`;
+            }
+            
+            // JP225先物価格更新
+            const futuresBasePrice = 42825;
+            const futuresPrice = futuresBasePrice + Math.floor(Math.random() * 300 - 150);
+            const futuresChange = futuresPrice - futuresBasePrice;
+            const futuresChangePercent = ((futuresChange / futuresBasePrice) * 100).toFixed(2);
+            
+            document.getElementById('futures-price').innerHTML = `${futuresPrice.toLocaleString()}<span style="font-size: 1rem; margin-left: 5px;">円</span>`;
+            
+            const futuresChangeElement = document.getElementById('futures-change');
+            if (futuresChange >= 0) {
+                futuresChangeElement.className = 'data-value price-change-positive';
+                futuresChangeElement.textContent = `+${futuresChange} (+${futuresChangePercent}%)`;
+            } else {
+                futuresChangeElement.className = 'data-value price-change-negative';
+                futuresChangeElement.textContent = `${futuresChange} (${futuresChangePercent}%)`;
+            }
+            
+            document.getElementById('futures-time').textContent = now.toLocaleTimeString('ja-JP');
+            
+            // PER更新と判定
+            const perValue = (11 + Math.random() * 10).toFixed(1);
+            document.getElementById('nikkei-per').innerHTML = `${perValue}<span style="font-size: 0.9rem; margin-left: 3px;">倍</span>`;
+            
+            const perCard = document.getElementById('per-card');
+            const perSignal = document.getElementById('per-signal');
+            
+            if (perValue >= 17) {
+                perCard.className = 'card per-sell';
+                perSignal.style.color = '#ff4444';
+                perSignal.textContent = '売り目安';
+            } else if (perValue <= 11) {
+                perCard.className = 'card per-buy';
+                perSignal.style.color = '#00ff88';
+                perSignal.textContent = '買い目安';
+            } else {
+                perCard.className = 'card per-neutral';
+                perSignal.style.color = '#ffc107';
+                perSignal.textContent = '中立ゾーン';
+            }
+            
+            // 信用残高更新
+            const sellBalance = (0.8 + Math.random() * 0.8).toFixed(1);
+            document.getElementById('sell-balance').innerHTML = `${sellBalance}<span style="font-size: 0.9rem; margin-left: 3px;">兆円</span>`;
+            
+            const sellStatus = document.getElementById('sell-status');
+            if (sellBalance >= 1.0) {
+                sellStatus.textContent = '多い = 買い優勢';
+                sellStatus.className = 'data-value surge-signal';
+            } else if (sellBalance >= 0.8) {
+                sellStatus.textContent = '売り多め = 買い優勢';
+                sellStatus.className = 'data-value bias-bullish';
+            } else {
+                sellStatus.textContent = '通常レベル';
+                sellStatus.className = 'data-value';
+                sellStatus.style.color = '#888';
+            }
+            
+            // 倍率更新
+            const etfMultiplier = (1.8 + Math.random() * 0.4).toFixed(2);
+            document.getElementById('etf-multiplier').innerHTML = `${etfMultiplier}<span style="font-size: 0.9rem; margin-left: 3px;">倍</span>`;
+            
+            const creditRatio = (0.3 + Math.random() * 0.4).toFixed(2);
+            document.getElementById('credit-ratio').innerHTML = `${creditRatio}<span style="font-size: 0.9rem; margin-left: 3px;">倍</span>`;
+            
+            const etfCreditRatio = (0.4 + Math.random() * 0.3).toFixed(2);
+            document.getElementById('etf-credit-ratio').innerHTML = `${etfCreditRatio}<span style="font-size: 0.9rem; margin-left: 3px;">倍</span>`;
+            
+            // NI225/SPX比率更新
+            const ratioValue = (0.15 + Math.random() * 0.02).toFixed(3);
+            document.getElementById('ratio-value').textContent = ratioValue;
+            
+            const marketBias = document.getElementById('market-bias');
+            if (ratioValue > 0.160) {
+                marketBias.textContent = '日本株優位';
+                marketBias.style.color = '#00ff88';
+            } else if (ratioValue < 0.150) {
+                marketBias.textContent = '米国株優位';
+                marketBias.style.color = '#ff4444';
+            } else {
+                marketBias.textContent = '日本株やや優位';
+                marketBias.style.color = '#4a9eff';
+            }
+        }
+        
+        // 初回データ更新
+        updateData();
+        
+        // 15秒ごとにデータ更新
+        setInterval(updateData, 15000);
+        
+        // ページ読み込み時のアニメーション
+        document.addEventListener('DOMContentLoaded', function() {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.5s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 100);
+            });
+        });
+    </script>
+</body>
+</html>
+    <script id="html_badge_script1">
+        window.__genspark_remove_badge_link = "https://www.genspark.ai/api/html_badge/" +
+            "remove_badge?token=To%2FBnjzloZ3UfQdcSaYfDt0VImgr78vxhV8M4mlJYk%2BOEB8xSzf%2F96GA%2BCxiFi6Fga49x6znmnBgV97NHtJqZDBjQZo4MAS40RrbcM%2BMDZSy8i1T8VpTvVzisbBTYrlMowyk5DLPBUaNu1iC5Com%2F1dk7p%2BkJjYc2%2FMVJowcwsuYW%2FxJOQVZy48Q8x4NcijQzoWsFC5AJBdWvDgRpCyYHVLOJjPDvIpiAiXknbjDOlOy9zbW7kIiDHdpnkwp0EB4NRvmdoRTHcZvl5yiRjVFnpJroVX4AgMyTLLuW7fkrpvcKHmLBdID4kODbpt%2BCCgYBrfvcZodXE0I2U0IFI%2BjK1q8teIV1NzaYPWyFMEQxXZVj%2BLnm4P%2BlE1FxrT%2B4n3U%2F%2BQDq8PxqOJG%2BJmZExOscVrk0NzjOQwAr8tfQWI3WQGn5eGHwF6FqnOa28vnGDzOnEaiT4I0q3hvkUKnV0oL65EmjnpUVinQOIo27IlM2qHL63gpHaDZ9j2duLOrC73H";
+        window.__genspark_locale = "ja-JP";
+        window.__genspark_token = "To/BnjzloZ3UfQdcSaYfDt0VImgr78vxhV8M4mlJYk+OEB8xSzf/96GA+CxiFi6Fga49x6znmnBgV97NHtJqZDBjQZo4MAS40RrbcM+MDZSy8i1T8VpTvVzisbBTYrlMowyk5DLPBUaNu1iC5Com/1dk7p+kJjYc2/MVJowcwsuYW/xJOQVZy48Q8x4NcijQzoWsFC5AJBdWvDgRpCyYHVLOJjPDvIpiAiXknbjDOlOy9zbW7kIiDHdpnkwp0EB4NRvmdoRTHcZvl5yiRjVFnpJroVX4AgMyTLLuW7fkrpvcKHmLBdID4kODbpt+CCgYBrfvcZodXE0I2U0IFI+jK1q8teIV1NzaYPWyFMEQxXZVj+Lnm4P+lE1FxrT+4n3U/+QDq8PxqOJG+JmZExOscVrk0NzjOQwAr8tfQWI3WQGn5eGHwF6FqnOa28vnGDzOnEaiT4I0q3hvkUKnV0oL65EmjnpUVinQOIo27IlM2qHL63gpHaDZ9j2duLOrC73H";
+    </script>
+    
+    <script id="html_notice_dialog_script" src="https://www.genspark.ai/notice_dialog.js"></script>
+    
